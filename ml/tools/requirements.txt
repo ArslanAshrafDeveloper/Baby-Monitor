@@ -1,0 +1,6 @@
+# Minimal deps for downloading the YAMNet TFLite build.
+# Pure stdlib is fine, but pin a couple of common audio tools so the same env
+# can be used to evaluate the model later.
+numpy>=1.24
+scipy>=1.10
+soundfile>=0.12

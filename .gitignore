@@ -1,0 +1,34 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Native
+ios/Pods/
+ios/build/
+android/app/build/
+android/build/
+android/.gradle/
+*.keystore
+
+# Env
+.env
+.env.local
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+
+# Models (large binary, downloaded by ml/tools/download_yamnet.py)
+app/assets/models/*.tflite
+ml/models/*.tflite
+
+# Logs
+*.log
+logs/
