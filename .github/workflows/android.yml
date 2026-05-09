@@ -115,12 +115,54 @@ jobs:
           p.write_text(src)
           PY
 
-      - name: Patch root build.gradle (NDK + SDK versions)
+      - name: Patch root build.gradle (NDK + dependency pins)
         run: |
-          GRADLE=app/android/build.gradle
-          if ! grep -q "ndkVersion" "$GRADLE"; then
-            sed -i 's/buildToolsVersion = "[^"]*"/buildToolsVersion = "34.0.0"\n        minSdkVersion = 24\n        compileSdkVersion = 34\n        targetSdkVersion = 34\n        ndkVersion = "26.1.10909125"/' "$GRADLE" || true
-          fi
+          python3 - <<'PY'
+          import pathlib, re
+          p = pathlib.Path("app/android/build.gradle")
+          src = p.read_text()
+
+          # 1. Make sure NDK version is pinned.
+          if "ndkVersion" not in src:
+              src = re.sub(
+                  r'(buildToolsVersion\s*=\s*"[^"]*")',
+                  r'\1\n        ndkVersion = "26.1.10909125"',
+                  src, count=1,
+              )
+
+          # 2. Pin androidx.core / core-ktx to versions compatible with compileSdk 34.
+          # androidx.core:core 1.16.0+ requires compileSdk 35 + Android Gradle Plugin 8.3+,
+          # but the RN 0.74.3 template ships with AGP 8.2.1 (cap = compileSdk 34).
+          # Same for androidx.activity (1.10+ also requires compileSdk 35).
+          pin_block = """
+
+          // ---- Auto-injected by CI: dependency pins for compileSdk 34 -------------
+          subprojects {
+              configurations.all {
+                  resolutionStrategy.eachDependency { details ->
+                      def req = details.requested
+                      if (req.group == "androidx.core" && (req.name == "core" || req.name == "core-ktx")) {
+                          details.useVersion "1.13.1"
+                          details.because "AGP 8.2.x caps compileSdk at 34"
+                      }
+                      if (req.group == "androidx.activity" && req.name == "activity") {
+                          details.useVersion "1.9.3"
+                          details.because "AGP 8.2.x caps compileSdk at 34"
+                      }
+                      if (req.group == "androidx.fragment" && req.name == "fragment") {
+                          details.useVersion "1.8.4"
+                          details.because "AGP 8.2.x caps compileSdk at 34"
+                      }
+                  }
+              }
+          }
+          // ------------------------------------------------------------------------
+          """
+          if "Auto-injected by CI" not in src:
+              src += pin_block
+
+          p.write_text(src)
+          PY
 
       # ---------------------------------------------------------------------
       # Cache Gradle dependencies between runs.
