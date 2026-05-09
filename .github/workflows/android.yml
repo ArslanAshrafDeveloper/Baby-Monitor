@@ -89,29 +89,33 @@ jobs:
 
       - name: Patch AndroidManifest.xml (permissions + foreground service)
         run: |
-          MANIFEST=app/android/app/src/main/AndroidManifest.xml
           python3 - <<'PY'
-          import re, pathlib
+          import pathlib
           p = pathlib.Path("app/android/app/src/main/AndroidManifest.xml")
           src = p.read_text()
-          perms = """
-          <uses-permission android:name="android.permission.INTERNET" />
-          <uses-permission android:name="android.permission.RECORD_AUDIO" />
-          <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
-          <uses-permission android:name="android.permission.WAKE_LOCK" />
-          <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-          <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-          <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-          <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-          """
-          if "RECORD_AUDIO" not in src:
-              src = src.replace("<application", perms + "\n  <application", 1)
-          if "FOREGROUND_SERVICE_MICROPHONE" not in src:
-              src = src.replace(
-                  "</application>",
-                  '  <service android:name="com.voziv.foregroundservice.ForegroundService" '
-                  'android:foregroundServiceType="microphone" android:exported="false" />\n</application>',
-              )
+
+          permissions = [
+              "android.permission.INTERNET",
+              "android.permission.RECORD_AUDIO",
+              "android.permission.MODIFY_AUDIO_SETTINGS",
+              "android.permission.WAKE_LOCK",
+              "android.permission.POST_NOTIFICATIONS",
+              "android.permission.FOREGROUND_SERVICE",
+              "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+              "android.permission.ACCESS_NETWORK_STATE",
+          ]
+          to_add = []
+          for perm in permissions:
+              token = f'android:name="{perm}"'
+              if token not in src:
+                  to_add.append(f'  <uses-permission {token} />')
+          if to_add:
+              src = src.replace("<application", "\n".join(to_add) + "\n  <application", 1)
+
+          # We don't ship the foreground-service service tag in v1 (the Voziv
+          # library isn't actually wired into the JS yet); skip that block to
+          # avoid manifest references to a class that doesn't exist on disk.
+
           p.write_text(src)
           PY
 
@@ -129,6 +133,9 @@ jobs:
                   r'\1\n        ndkVersion = "26.1.10909125"',
                   src, count=1,
               )
+
+          # 1b. Bump minSdkVersion to 24 (react-native-webrtc + react-native-camera-kit).
+          src = re.sub(r'minSdkVersion\s*=\s*\d+', 'minSdkVersion = 24', src)
 
           # 2. Pin androidx.core / core-ktx to versions compatible with compileSdk 34.
           # androidx.core:core 1.16.0+ requires compileSdk 35 + Android Gradle Plugin 8.3+,
