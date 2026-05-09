@@ -25,11 +25,13 @@ export function OnboardingScreen() {
       const perm = Platform.OS === 'ios'
         ? PERMISSIONS.IOS.MICROPHONE
         : PERMISSIONS.ANDROID.RECORD_AUDIO;
-      const result = await request(perm);
-      if (result !== RESULTS.GRANTED) {
-        // We still continue; the user can grant later.
-      }
-      await ensureSignedIn();
+      try { await request(perm); } catch { /* user can grant later */ }
+
+      // Try to sign in, but don't block onboarding if the server isn't
+      // reachable yet — pairing will retry. This keeps first-launch usable
+      // even when the user hasn't pointed the app at a running server.
+      ensureSignedIn().catch(() => { /* deferred to pairing */ });
+
       setOnboarded();
       nav.replace('RolePicker');
     } finally {
